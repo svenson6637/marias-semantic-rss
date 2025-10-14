@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maria's Semantic RSS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .highlight {
+            background-color: #fde047; /* yellow-300 */
+            padding: 0 2px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 tracking-tight">Maria's Semantic RSS 🐸</h1>
+            <p class="text-gray-600 mt-2">Your personal news aggregator. Add RSS feeds and keywords to find the stories that matter to you.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Controls -->
+            <aside class="lg:col-span-1 space-y-6">
+                <!-- RSS Feeds Management -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg>
+                        RSS Feeds
+                    </h2>
+                    <div class="space-y-3" id="feed-list">
+                        <!-- Default feeds will be populated here -->
+                    </div>
+                    <div class="mt-4">
+                        <input type="url" id="new-feed-url" placeholder="https://example.com/rss" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="add-feed-btn" class="w-full mt-2 bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">Add Feed</button>
+                    </div>
+                </div>
+
+                <!-- Keyword Management -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+                        Keywords & Phrases
+                    </h2>
+                    <textarea id="keywords-input" class="w-full h-24 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter keywords, one per line..."></textarea>
+                    
+                    <div class="mt-4">
+                        <label for="keyword-upload" class="w-full text-center block bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 cursor-pointer transition duration-200">
+                            Upload Keywords (.txt, .csv)
+                        </label>
+                        <input type="file" id="keyword-upload" class="hidden" accept=".txt,.csv">
+                    </div>
+                     <div class="mt-2 text-sm text-gray-500">
+                        <p><strong>Semantic Cloud Tip:</strong> For weighted keywords, use the format `word:weight` (e.g., `ai:3`, `journalism:2`). Higher weights have more relevance.</p>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button id="fetch-and-filter-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700 transition duration-200 text-lg flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M10 12a2 2 0 1 0 4 0 2 2 0 0 0-4 0z"></path><path d="M21 12c-2.667 4.667-6 7-9 7s-6.333-2.333-9-7c2.667-4.667 6-7 9-7s6.333 2.333 9 7z"></path></svg>
+                    Fetch & Filter News
+                </button>
+            </aside>
+
+            <!-- Right Column: Results -->
+            <main class="lg:col-span-2">
+                <div id="results-container" class="bg-white p-6 rounded-xl shadow-md min-h-[400px]">
+                    <div id="results-header" class="flex flex-wrap items-center justify-between mb-4 border-b pb-4">
+                        <h2 class="text-xl font-bold">Filtered News</h2>
+                        <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+                            <span class="text-sm font-medium text-gray-600">Sort by:</span>
+                            <button data-sort="date-desc" class="sort-btn bg-gray-200 text-gray-700 text-sm font-semibold py-1 px-3 rounded-md hover:bg-gray-300">Newest</button>
+                            <button data-sort="date-asc" class="sort-btn bg-gray-100 text-gray-600 text-sm font-semibold py-1 px-3 rounded-md hover:bg-gray-300">Oldest</button>
+                            <button data-sort="relevance" class="sort-btn bg-gray-100 text-gray-600 text-sm font-semibold py-1 px-3 rounded-md hover:bg-gray-300">Relevance</button>
+                        </div>
+                    </div>
+                    <div id="status-area">
+                        <div class="text-center text-gray-500 py-16">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4 text-gray-400"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"></path><path d="M12 12a5 5 0 0 0 5-5"></path><path d="m12 12-4 4"></path></svg>
+                            <h3 class="text-lg font-semibold">Your filtered news will appear here.</h3>
+                            <p class="mt-1">Add some feeds and keywords, then click "Fetch & Filter News".</p>
+                        </div>
+                    </div>
+                    <div id="results-list" class="space-y-5">
+                        <!-- Filtered articles will be rendered here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const feedList = document.getElementById('feed-list');
+        const newFeedUrl = document.getElementById('new-feed-url');
+        const addFeedBtn = document.getElementById('add-feed-btn');
+        const keywordsInput = document.getElementById('keywords-input');
+        const keywordUpload = document.getElementById('keyword-upload');
+        const fetchBtn = document.getElementById('fetch-and-filter-btn');
+        const statusArea = document.getElementById('status-area');
+        const resultsList = document.getElementById('results-list');
+        const sortButtons = document.querySelectorAll('.sort-btn');
+
+        let feeds = [
+            'http://rss.cnn.com/rss/cnn_topstories.rss',
+            'https://feeds.bbci.co.uk/news/world/rss.xml',
+            'https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml'
+        ];
+        let articles = [];
+        let currentSort = 'date-desc';
+
+        const showdownConverter = new showdown.Converter();
+
+        const saveState = () => {
+            localStorage.setItem('rssFeeds', JSON.stringify(feeds));
+            localStorage.setItem('rssKeywords', keywordsInput.value);
+        };
+
+        const loadState = () => {
+            const savedFeeds = localStorage.getItem('rssFeeds');
+            if (savedFeeds) {
+                feeds = JSON.parse(savedFeeds);
+            }
+            const savedKeywords = localStorage.getItem('rssKeywords');
+            if (savedKeywords) {
+                keywordsInput.value = savedKeywords;
+            }
+        };
+
+        const renderFeeds = () => {
+            feedList.innerHTML = '';
+            feeds.forEach((feed, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-gray-50 p-2 rounded-md';
+                const feedHost = new URL(feed.startsWith('http') ? feed : `http://${feed}`).hostname;
+                div.innerHTML = `
+                    <span class="text-sm truncate" title="${feed}">${feedHost}</span>
+                    <button data-index="${index}" class="remove-feed-btn text-red-500 hover:text-red-700 p-1 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                `;
+                feedList.appendChild(div);
+            });
+        };
+
+        const addFeed = () => {
+            const url = newFeedUrl.value.trim();
+            if (url && !feeds.includes(url)) {
+                try {
+                    new URL(url); // Validate URL
+                    feeds.push(url);
+                    renderFeeds();
+                    saveState();
+                    newFeedUrl.value = '';
+                } catch (e) {
+                    alert('Please enter a valid URL.');
+                }
+            }
+        };
+
+        const removeFeed = (index) => {
+            feeds.splice(index, 1);
+            renderFeeds();
+            saveState();
+        };
+        
+        const parseKeywords = () => {
+            return keywordsInput.value.split('\n')
+                .map(line => line.trim())
+                .filter(line => line)
+                .map(line => {
+                    const parts = line.split(':');
+                    if (parts.length === 2 && !isNaN(parseInt(parts[1], 10))) {
+                        return { phrase: parts[0].trim().toLowerCase(), weight: parseInt(parts[1], 10) };
+                    }
+                    return { phrase: line.toLowerCase(), weight: 1 };
+                });
+        };
+
+        const fetchFeed = async (feedUrl) => {
+            // Using a CORS proxy to bypass browser security restrictions
+            const proxyUrl = 'https://api.allorigins.win/get?url=';
+            try {
+                const response = await fetch(`${proxyUrl}${encodeURIComponent(feedUrl)}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                const text = data.contents;
+                
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(text, "application/xml");
+                const items = xml.querySelectorAll("item, entry");
+                
+                return Array.from(items).map(item => {
+                    const title = item.querySelector("title")?.textContent || '';
+                    let description = item.querySelector("description, summary")?.textContent || '';
+                    // Clean up HTML from description
+                    description = showdownConverter.makeMarkdown(description);
+                    description = new DOMParser().parseFromString(description, 'text/html').body.textContent || "";
+
+
+                    const link = item.querySelector("link")?.textContent || item.querySelector("link")?.getAttribute('href') || '';
+                    let pubDateStr = item.querySelector("pubDate, published, updated")?.textContent || '';
+                    let pubDate = pubDateStr ? new Date(pubDateStr) : new Date();
+
+                    return {
+                        title,
+                        description,
+                        link,
+                        pubDate,
+                        feed: new URL(feedUrl).hostname
+                    };
+                });
+            } catch (error) {
+                console.error(`Failed to fetch feed: ${feedUrl}`, error);
+                return []; // Return empty array on error
+            }
+        };
+
+        const fetchAndFilter = async () => {
+            statusArea.innerHTML = `
+                <div class="text-center text-gray-500 py-16">
+                    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4 mx-auto"></div>
+                    <h3 class="text-lg font-semibold">Fetching feeds...</h3>
+                    <p class="mt-1">Please wait while we gather the latest news.</p>
+                </div>`;
+            resultsList.innerHTML = '';
+            
+            const keywords = parseKeywords();
+            if (keywords.length === 0) {
+                 statusArea.innerHTML = `
+                    <div class="text-center text-red-500 py-16">
+                         <h3 class="text-lg font-semibold">No keywords provided.</h3>
+                         <p>Please enter at least one keyword or phrase.</p>
+                    </div>`;
+                return;
+            }
+
+            const allItemsPromises = feeds.map(fetchFeed);
+            const allItemsArrays = await Promise.all(allItemsPromises);
+            articles = [].concat(...allItemsArrays);
+
+            const filteredArticles = articles.map(article => {
+                let score = 0;
+                let matches = new Set();
+                const content = `${article.title.toLowerCase()} ${article.description.toLowerCase()}`;
+                
+                keywords.forEach(kw => {
+                    if (content.includes(kw.phrase)) {
+                        score += kw.weight;
+                        matches.add(kw.phrase);
+                    }
+                });
+                
+                if (score > 0) {
+                    article.score = score;
+                    article.matches = Array.from(matches);
+                    return article;
+                }
+                return null;
+            }).filter(Boolean);
+            
+            articles = filteredArticles;
+            sortAndRender();
+        };
+
+        const highlightKeywords = (text, matches) => {
+            if (!matches || matches.length === 0) return text;
+            const regex = new RegExp(`(${matches.join('|')})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        };
+
+        const sortAndRender = () => {
+            if (articles.length === 0) {
+                statusArea.innerHTML = `
+                    <div class="text-center text-gray-500 py-16">
+                         <h3 class="text-lg font-semibold">No matching articles found.</h3>
+                         <p>Try broadening your keywords or adding more feeds.</p>
+                    </div>`;
+                 resultsList.innerHTML = '';
+                 return;
+            }
+
+            statusArea.innerHTML = '';
+
+            switch(currentSort) {
+                case 'date-desc':
+                    articles.sort((a, b) => b.pubDate - a.pubDate);
+                    break;
+                case 'date-asc':
+                    articles.sort((a, b) => a.pubDate - b.pubDate);
+                    break;
+                case 'relevance':
+                    articles.sort((a, b) => b.score - a.score);
+                    break;
+            }
+
+            renderResults(articles);
+        };
+        
+        const renderResults = (articlesToRender) => {
+            resultsList.innerHTML = articlesToRender.map(article => {
+                const title = highlightKeywords(article.title, article.matches);
+                const description = highlightKeywords(article.description, article.matches).substring(0, 200) + '...';
+                
+                return `
+                <div class="border-b pb-4 last:border-b-0">
+                    <h3 class="text-lg font-semibold mb-1">
+                        <a href="${article.link}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">${title}</a>
+                    </h3>
+                    <div class="text-xs text-gray-500 mb-2">
+                        <span>${article.feed}</span> &bull; 
+                        <span>${article.pubDate.toLocaleDateString()}</span> &bull; 
+                        <span class="font-medium">Relevance: ${article.score}</span>
+                    </div>
+                    <p class="text-sm text-gray-700">${description}</p>
+                    <div class="mt-2 text-xs">
+                        <strong>Matches:</strong> ${article.matches.join(', ')}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        };
+        
+        addFeedBtn.addEventListener('click', addFeed);
+        
+        newFeedUrl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addFeed();
+        });
+
+        feedList.addEventListener('click', (e) => {
+            const button = e.target.closest('.remove-feed-btn');
+            if (button) {
+                removeFeed(parseInt(button.dataset.index, 10));
+            }
+        });
+
+        keywordUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const content = event.target.result;
+                    const lines = content.replace(/,/g, '\n'); // Treat CSV commas as newlines
+                    keywordsInput.value += (keywordsInput.value ? '\n' : '') + lines;
+                    saveState();
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        keywordsInput.addEventListener('input', saveState);
+
+        fetchBtn.addEventListener('click', fetchAndFilter);
+
+        sortButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                currentSort = e.target.dataset.sort;
+                sortButtons.forEach(btn => {
+                    btn.classList.remove('bg-gray-200');
+                    btn.classList.add('bg-gray-100', 'text-gray-600');
+                });
+                e.target.classList.add('bg-gray-200');
+                e.target.classList.remove('bg-gray-100', 'text-gray-600');
+                sortAndRender();
+            });
+        });
+
+        // Initial setup
+        loadState();
+        renderFeeds();
+    });
+    </script>
+</body>
+</html>
+
