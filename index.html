@@ -61,7 +61,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
                         Keywords & Phrases
                     </h2>
-                    <textarea id="keywords-input" class="w-full h-24 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter keywords, one per line..."></textarea>
+                    <textarea id="keywords-input" class="w-full h-24 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Keywords to include (e.g., ai:3)&#10;-Keywords to exclude (e.g., -politics)"></textarea>
                     
                     <div class="mt-4">
                         <label for="keyword-upload" class="w-full text-center block bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 cursor-pointer transition duration-200">
@@ -70,7 +70,7 @@
                         <input type="file" id="keyword-upload" class="hidden" accept=".txt,.csv">
                     </div>
                      <div class="mt-2 text-sm text-gray-500">
-                        <p><strong>Semantic Cloud Tip:</strong> For weighted keywords, use the format `word:weight` (e.g., `ai:3`, `journalism:2`). Higher weights have more relevance.</p>
+                        <p><strong>Tip:</strong> Use `word:weight` for relevance (e.g., `ai:3`). Use a minus sign to exclude a word (e.g., `-sports`).</p>
                     </div>
                 </div>
 
@@ -184,16 +184,26 @@
         };
         
         const parseKeywords = () => {
-            return keywordsInput.value.split('\n')
+            const lines = keywordsInput.value.split('\n')
                 .map(line => line.trim())
-                .filter(line => line)
-                .map(line => {
+                .filter(line => line);
+            
+            const include = [];
+            const exclude = [];
+
+            lines.forEach(line => {
+                if (line.startsWith('-')) {
+                    exclude.push(line.substring(1).trim().toLowerCase());
+                } else {
                     const parts = line.split(':');
                     if (parts.length === 2 && !isNaN(parseInt(parts[1], 10))) {
-                        return { phrase: parts[0].trim().toLowerCase(), weight: parseInt(parts[1], 10) };
+                        include.push({ phrase: parts[0].trim().toLowerCase(), weight: parseInt(parts[1], 10) });
+                    } else {
+                        include.push({ phrase: line.toLowerCase(), weight: 1 });
                     }
-                    return { phrase: line.toLowerCase(), weight: 1 };
-                });
+                }
+            });
+            return { include, exclude };
         };
 
         const fetchFeed = async (feedUrl) => {
@@ -246,12 +256,12 @@
                 </div>`;
             resultsList.innerHTML = '';
             
-            const keywords = parseKeywords();
-            if (keywords.length === 0) {
+            const { include, exclude } = parseKeywords();
+            if (include.length === 0) {
                  statusArea.innerHTML = `
                     <div class="text-center text-red-500 py-16">
-                         <h3 class="text-lg font-semibold">No keywords provided.</h3>
-                         <p>Please enter at least one keyword or phrase.</p>
+                         <h3 class="text-lg font-semibold">No keywords to include.</h3>
+                         <p>Please enter at least one keyword to search for.</p>
                     </div>`;
                 return;
             }
@@ -261,11 +271,18 @@
             articles = [].concat(...allItemsArrays);
 
             const filteredArticles = articles.map(article => {
-                let score = 0;
-                let matches = new Set();
                 const content = `${article.title.toLowerCase()} ${article.description.toLowerCase()}`;
                 
-                keywords.forEach(kw => {
+                // 1. Check for exclusion keywords first
+                if (exclude.some(excludePhrase => content.includes(excludePhrase))) {
+                    return null; // Exclude this article
+                }
+
+                // 2. Check for inclusion keywords and calculate score
+                let score = 0;
+                let matches = new Set();
+                
+                include.forEach(kw => {
                     if (content.includes(kw.phrase)) {
                         score += kw.weight;
                         matches.add(kw.phrase);
@@ -286,7 +303,9 @@
 
         const highlightKeywords = (text, matches) => {
             if (!matches || matches.length === 0) return text;
-            const regex = new RegExp(`(${matches.join('|')})`, 'gi');
+            // Escape special characters for regex
+            const escapedMatches = matches.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            const regex = new RegExp(`(${escapedMatches.join('|')})`, 'gi');
             return text.replace(regex, '<span class="highlight">$1</span>');
         };
 
