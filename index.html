@@ -50,8 +50,11 @@
                         <!-- Default feeds will be populated here -->
                     </div>
                     <div class="mt-4">
-                        <input type="url" id="new-feed-url" placeholder="https://example.com/rss" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <button id="add-feed-btn" class="w-full mt-2 bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">Add Feed</button>
+                        <input type="url" id="new-feed-url" placeholder="Paste one or more feed URLs" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            <button id="add-feed-btn" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">Add Feed(s)</button>
+                            <button id="clear-feeds-btn" class="w-full bg-red-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-600 transition duration-200">Clear All</button>
+                        </div>
                     </div>
                 </div>
 
@@ -63,14 +66,30 @@
                     </h2>
                     <textarea id="keywords-input" class="w-full h-24 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Single words or phrases per line...&#10;e.g., Trump Zelensky (AND)&#10;e.g., -politics (EXCLUDE)"></textarea>
                     
-                    <div class="mt-4">
+                    <div class="grid grid-cols-2 gap-2 mt-4">
                         <label for="keyword-upload" class="w-full text-center block bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 cursor-pointer transition duration-200">
-                            Upload Keywords (.txt, .csv)
+                            Upload List
                         </label>
                         <input type="file" id="keyword-upload" class="hidden" accept=".txt,.csv">
+                        <button id="clear-keywords-btn" class="w-full bg-red-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-600 transition duration-200">Clear All</button>
                     </div>
                      <div class="mt-2 text-sm text-gray-500">
                         <p><strong>Tip:</strong> Words on the <strong>same line</strong> must ALL appear (AND). Use different lines for OR. Use `-` to exclude.</p>
+                    </div>
+                </div>
+
+                <!-- Session Management -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        Session
+                    </h2>
+                    <div class="grid grid-cols-2 gap-2">
+                         <button id="save-session-btn" class="w-full bg-indigo-500 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-600 transition duration-200">Save Session</button>
+                        <label for="load-session-input" class="w-full text-center block bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-md hover:bg-gray-300 cursor-pointer transition duration-200">
+                            Load Session
+                        </label>
+                        <input type="file" id="load-session-input" class="hidden" accept=".json">
                     </div>
                 </div>
 
@@ -113,8 +132,12 @@
         const feedList = document.getElementById('feed-list');
         const newFeedUrl = document.getElementById('new-feed-url');
         const addFeedBtn = document.getElementById('add-feed-btn');
+        const clearFeedsBtn = document.getElementById('clear-feeds-btn');
         const keywordsInput = document.getElementById('keywords-input');
         const keywordUpload = document.getElementById('keyword-upload');
+        const clearKeywordsBtn = document.getElementById('clear-keywords-btn');
+        const saveSessionBtn = document.getElementById('save-session-btn');
+        const loadSessionInput = document.getElementById('load-session-input');
         const fetchBtn = document.getElementById('fetch-and-filter-btn');
         const statusArea = document.getElementById('status-area');
         const resultsList = document.getElementById('results-list');
@@ -163,18 +186,28 @@
         };
 
         const addFeed = () => {
-            const url = newFeedUrl.value.trim();
-            if (url && !feeds.includes(url)) {
-                try {
-                    new URL(url); // Validate URL
-                    feeds.push(url);
-                    renderFeeds();
-                    saveState();
-                    newFeedUrl.value = '';
-                } catch (e) {
-                    alert('Please enter a valid URL.');
+            const urls = newFeedUrl.value.split(/[\s\n,]+/).map(url => url.trim()).filter(Boolean);
+            if (urls.length === 0) return;
+            
+            let addedCount = 0;
+            urls.forEach(url => {
+                if (url && !feeds.includes(url)) {
+                    try {
+                        // A simple check for URL format.
+                        new URL(url.startsWith('http') ? url : `http://${url}`);
+                        feeds.push(url);
+                        addedCount++;
+                    } catch (e) {
+                        console.warn(`Invalid URL skipped: ${url}`);
+                    }
                 }
+            });
+
+            if (addedCount > 0) {
+                renderFeeds();
+                saveState();
             }
+            newFeedUrl.value = '';
         };
 
         const removeFeed = (index) => {
@@ -182,7 +215,60 @@
             renderFeeds();
             saveState();
         };
+
+        const clearAllFeeds = () => {
+            feeds = [];
+            renderFeeds();
+            saveState();
+        };
         
+        const clearAllKeywords = () => {
+            keywordsInput.value = '';
+            saveState();
+        };
+        
+        const saveSession = () => {
+            const sessionData = {
+                feeds: feeds,
+                keywords: keywordsInput.value
+            };
+            const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'marias-rss-session.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        const loadSession = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const sessionData = JSON.parse(e.target.result);
+                    if (sessionData.feeds && Array.isArray(sessionData.feeds)) {
+                        feeds = sessionData.feeds;
+                    }
+                    if (sessionData.keywords && typeof sessionData.keywords === 'string') {
+                        keywordsInput.value = sessionData.keywords;
+                    }
+                    renderFeeds();
+                    saveState();
+                } catch (err) {
+                    console.error("Failed to parse session file", err);
+                    alert("Error: Could not load the session file. It may be corrupted.");
+                }
+            };
+            reader.readAsText(file);
+            // Reset the input so the same file can be loaded again
+            event.target.value = null; 
+        };
+
         const parseKeywords = () => {
             const lines = keywordsInput.value.split('\n')
                 .map(line => line.trim())
@@ -377,6 +463,8 @@
             }
         });
 
+        clearFeedsBtn.addEventListener('click', clearAllFeeds);
+
         keywordUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -391,7 +479,12 @@
             }
         });
 
+        clearKeywordsBtn.addEventListener('click', clearAllKeywords);
+
         keywordsInput.addEventListener('input', saveState);
+
+        saveSessionBtn.addEventListener('click', saveSession);
+        loadSessionInput.addEventListener('change', loadSession);
 
         fetchBtn.addEventListener('click', fetchAndFilter);
 
@@ -415,5 +508,4 @@
     </script>
 </body>
 </html>
-
 
