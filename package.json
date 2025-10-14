@@ -1,0 +1,16 @@
+{
+  "name": "newsfeed-keyword-filter",
+  "version": "1.0.0",
+  "description": "A simple, client-side RSS feed aggregator and keyword filter.",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve",
+    "build": ""
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
+
