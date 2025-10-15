@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadSessionInput = document.getElementById('load-session-input');
     const autoRefreshSelect = document.getElementById('auto-refresh-interval');
     const notificationsBtn = document.getElementById('notifications-btn');
+    const dateFilterSelect = document.getElementById('date-filter-select');
     const fetchBtn = document.getElementById('fetch-and-filter-btn');
     const statusArea = document.getElementById('status-area');
     const resultsList = document.getElementById('results-list');
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('rssFeeds', JSON.stringify(feeds));
         localStorage.setItem('rssKeywords', keywordsInput.value);
         localStorage.setItem('rssAutoRefresh', autoRefreshSelect.value);
+        localStorage.setItem('rssDateFilter', dateFilterSelect.value);
     };
 
     const loadState = () => {
@@ -49,6 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedAutoRefresh = localStorage.getItem('rssAutoRefresh');
         if (savedAutoRefresh) {
             autoRefreshSelect.value = savedAutoRefresh;
+        }
+        const savedDateFilter = localStorage.getItem('rssDateFilter');
+        if (savedDateFilter) {
+            dateFilterSelect.value = savedDateFilter;
         }
     };
 
@@ -166,7 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const sessionData = {
             feeds: feeds,
             keywords: keywordsInput.value,
-            autoRefresh: autoRefreshSelect.value
+            autoRefresh: autoRefreshSelect.value,
+            dateFilter: dateFilterSelect.value
         };
         const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -195,6 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (sessionData.autoRefresh) {
                     autoRefreshSelect.value = sessionData.autoRefresh;
+                }
+                 if (sessionData.dateFilter) {
+                    dateFilterSelect.value = sessionData.dateFilter;
                 }
                 renderFeeds();
                 handleAutoRefreshChange();
@@ -264,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const { include, exclude } = parseKeywords();
         if (include.length === 0) {
-             statusArea.innerHTML = `<div class="text-center text-red-500 py-16"><h3 class="text-lg font-semibold">No keywords to include.</h3></div>`;
+             statusArea.innerHTML = `<div class="text-center text-red-500 py-16"><h3 class="text-lg font-semibold">Please enter at least one keyword to search for.</h3></div>`;
             return;
         }
 
@@ -272,9 +282,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const allItemsArrays = await Promise.all(allItemsPromises);
         const fetchedArticles = [].concat(...allItemsArrays);
         
+        const filterValue = dateFilterSelect.value;
+        let articlesToProcess = fetchedArticles;
+
+        if (filterValue !== 'all') {
+            const days = parseInt(filterValue, 10);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+            articlesToProcess = fetchedArticles.filter(article => article.pubDate >= cutoffDate);
+        }
+
         const newArticlesForNotification = [];
 
-        const filteredArticles = fetchedArticles.map(article => {
+        const filteredArticles = articlesToProcess.map(article => {
             const content = `${article.title.toLowerCase()} ${article.description.toLowerCase()}`;
             if (exclude.some(ex => content.includes(ex))) return null;
             
@@ -312,15 +332,23 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const highlightKeywords = (text, matches) => {
+        if (!text) return '';
         if (!matches || matches.length === 0) return text;
-        const escapedMatches = matches.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        
+        // Flatten all words from all match phrases for highlighting
+        const allMatchWords = matches.flatMap(phrase => phrase.split(' ')).filter(Boolean);
+        const uniqueWords = [...new Set(allMatchWords)];
+        
+        const escapedMatches = uniqueWords.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        if(escapedMatches.length === 0) return text;
+        
         const regex = new RegExp(`(${escapedMatches.join('|')})`, 'gi');
         return text.replace(regex, '<span class="highlight">$1</span>');
     };
 
     const sortAndRender = () => {
         if (articles.length === 0) {
-            statusArea.innerHTML = `<div class="text-center text-gray-500 py-16"><h3 class="text-lg font-semibold">No matching articles found.</h3></div>`;
+            statusArea.innerHTML = `<div class="text-center text-gray-500 py-16"><h3 class="text-lg font-semibold">No matching articles found.</h3><p class="mt-1">Try adjusting your keywords or date filter.</p></div>`;
             resultsList.innerHTML = '';
             return;
         }
@@ -435,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     autoRefreshSelect.addEventListener('change', handleAutoRefreshChange);
     notificationsBtn.addEventListener('click', handleNotificationClick);
+    dateFilterSelect.addEventListener('change', saveState);
 
     // Initial setup
     loadState();
@@ -442,3 +471,4 @@ document.addEventListener('DOMContentLoaded', () => {
     handleAutoRefreshChange();
     updateNotificationButton();
 });
+
